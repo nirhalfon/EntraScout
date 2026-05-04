@@ -23,6 +23,7 @@ targets*.txt
 
 # Local run output
 output/
+web_output/
 .entrascout/
 *.token
 
