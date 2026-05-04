@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EntraScout — Executive Summary — {{ snapshot.target_input }}</title>
+<style>
+  /* Light, print-first stylesheet. Optimized for browser "Print → Save as PDF". */
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font: 11pt/1.45 -apple-system, system-ui, "Segoe UI", Helvetica, sans-serif;
+    color: #1a1a1a; background: #fff; margin: 0; padding: 14mm 14mm;
+  }
+  h1 { font-size: 22pt; margin: 0 0 4pt 0; color: #0d47a1; letter-spacing: -0.5px; }
+  h2 { font-size: 13pt; margin: 14pt 0 6pt 0; color: #0d47a1; border-bottom: 1.5pt solid #0d47a1; padding-bottom: 2pt; }
+  h3 { font-size: 11pt; margin: 8pt 0 3pt 0; color: #333; }
+  .muted { color: #666; }
+  .meta { font-size: 9.5pt; color: #555; margin-bottom: 12pt; }
+  .meta b { color: #1a1a1a; }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 8pt 0; font-size: 10pt; }
+  th, td { padding: 4pt 6pt; text-align: left; vertical-align: top; }
+  th { background: #f0f4f9; color: #0d47a1; border-bottom: 1pt solid #0d47a1; font-weight: 600; }
+  td { border-bottom: 0.4pt solid #ddd; }
+  .pill {
+    display: inline-block; padding: 1pt 6pt; border-radius: 9pt;
+    font-size: 8.5pt; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase;
+  }
+  .pill.critical { background: #b71c1c; color: #fff; }
+  .pill.high { background: #d32f2f; color: #fff; }
+  .pill.medium { background: #f9a825; color: #fff; }
+  .pill.low { background: #43a047; color: #fff; }
+  .pill.info { background: #1976d2; color: #fff; }
+  .stats { display: flex; gap: 12pt; margin: 6pt 0 12pt 0; flex-wrap: wrap; }
+  .stat { flex: 1; min-width: 70pt; padding: 6pt 8pt; border: 0.4pt solid #ccc; border-radius: 4pt; }
+  .stat .n { font-size: 17pt; font-weight: 700; color: #0d47a1; line-height: 1; }
+  .stat .l { font-size: 8.5pt; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3pt; }
+  .verdict { padding: 8pt 10pt; border-left: 3pt solid #0d47a1; background: #f0f4f9; margin: 6pt 0 12pt 0; font-size: 10.5pt; }
+  .verdict.bad { border-left-color: #d32f2f; background: #ffebee; }
+  .verdict.warn { border-left-color: #f9a825; background: #fff8e1; }
+  .verdict.ok { border-left-color: #43a047; background: #e8f5e9; }
+  .footer { margin-top: 16pt; padding-top: 6pt; border-top: 0.5pt solid #ccc; font-size: 8.5pt; color: #888; }
+  .small { font-size: 9pt; }
+  ol, ul { margin: 4pt 0 4pt 18pt; padding: 0; }
+  li { margin: 2pt 0; }
+  .chip { display: inline-block; padding: 1pt 6pt; margin: 1pt 2pt 1pt 0; border-radius: 9pt; background: #e3f2fd; color: #0d47a1; font-size: 8.5pt; }
+  .pagebreak { page-break-after: always; }
+  @media screen {
+    body { max-width: 800px; margin: 20px auto; box-shadow: 0 0 12px rgba(0,0,0,0.08); padding: 28px 36px; }
+  }
+</style>
+</head>
+<body>
+
+<h1>EntraScout — Executive Summary</h1>
+<div class="meta">
+  <b>Target:</b> {{ snapshot.target_input }}
+  &nbsp;·&nbsp; <b>Tenant:</b> {{ snapshot.tenant_default_name or "(not detected)" }}
+  &nbsp;·&nbsp; <b>Tenant ID:</b> {{ snapshot.tenant_id or "—" }}<br>
+  <b>Federation:</b> {{ snapshot.federation_type or "Unknown" }}
+  {% if snapshot.auth_url %}&nbsp;·&nbsp; <b>Auth URL:</b> {{ snapshot.auth_url[:70] }}{% endif %}
+  &nbsp;·&nbsp; <b>Run:</b> {{ run_meta.started_at[:19] if run_meta.started_at else "" }} UTC
+</div>
+
+{# ---- Top-level verdict bar ---- #}
+{% set crit_high = (counts.critical or 0) + (counts.high or 0) %}
+{% if crit_high >= 1 %}
+  <div class="verdict bad">
+    <b>Verdict: ATTENTION</b> — {{ crit_high }} critical/high issue(s) detected. Immediate review recommended for the items in the &ldquo;Critical &amp; High&rdquo; table below.
+  </div>
+{% elif (counts.medium or 0) >= 1 %}
+  <div class="verdict warn">
+    <b>Verdict: REVIEW</b> — no critical/high findings, but {{ counts.medium }} medium issue(s) warrant follow-up.
+  </div>
+{% else %}
+  <div class="verdict ok">
+    <b>Verdict: BASELINE OK</b> — no critical, high, or medium issues detected by external recon. Continue periodic reviews.
+  </div>
+{% endif %}
+
+{# ---- At-a-glance stats ---- #}
+<div class="stats">
+  <div class="stat"><div class="n">{{ counts.total or 0 }}</div><div class="l">Total findings</div></div>
+  <div class="stat"><div class="n" style="color:#b71c1c">{{ counts.critical or 0 }}</div><div class="l">Critical</div></div>
+  <div class="stat"><div class="n" style="color:#d32f2f">{{ counts.high or 0 }}</div><div class="l">High</div></div>
+  <div class="stat"><div class="n" style="color:#f9a825">{{ counts.medium or 0 }}</div><div class="l">Medium</div></div>
+  <div class="stat"><div class="n" style="color:#43a047">{{ counts.low or 0 }}</div><div class="l">Low</div></div>
+  <div class="stat"><div class="n" style="color:#1976d2">{{ counts.info or 0 }}</div><div class="l">Info</div></div>
+</div>
+
+{# ---- Critical & High findings ---- #}
+{% set hi_issues = issues | selectattr('severity.value', 'in', ['CRITICAL', 'HIGH']) | list %}
+{% if hi_issues %}
+<h2>Critical &amp; High Findings ({{ hi_issues|length }})</h2>
+<table>
+  <tr><th>Severity</th><th>Title</th><th style="width: 35%">Why it matters</th></tr>
+  {% for f in hi_issues %}
+  <tr>
+    <td><span class="pill {{ f.severity.value|lower }}">{{ f.severity.value }}</span></td>
+    <td><b>{{ f.title }}</b><br>
+        <span class="small muted">{{ f.target or "" }}</span>
+        {% if f.tags %}<br>{% for t in f.tags[:5] %}<span class="chip">{{ t.value }}</span>{% endfor %}{% endif %}
+    </td>
+    <td class="small">{{ (f.description or "")[:280] }}{% if (f.description or "")|length > 280 %}…{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+{# ---- Top attack chains ---- #}
+{% if chain and chain.paths %}
+<h2>Top Attack Paths</h2>
+<ol>
+  {% for p in chain.paths[:5] %}
+  <li>
+    <b>{{ p.name }}</b>
+    {% if p.effort %}<span class="chip">effort: {{ p.effort }}</span>{% endif %}
+    {% if p.blast_radius %}<span class="chip">blast: {{ p.blast_radius }}</span>{% endif %}
+    {% if p.mitre %}{% for m in p.mitre[:3] %}<span class="chip">{{ m }}</span>{% endfor %}{% endif %}
+    <br><span class="small">{{ (p.summary or "")[:280] }}</span>
+  </li>
+  {% endfor %}
+</ol>
+{% endif %}
+
+{# ---- Tenant fingerprint ---- #}
+<h2>Tenant Fingerprint</h2>
+<table>
+  <tr><th style="width:32%">Property</th><th>Value</th></tr>
+  <tr><td>Tenant ID</td><td>{{ snapshot.tenant_id or "(not resolved)" }}</td></tr>
+  <tr><td>Tenant default name</td><td>{{ snapshot.tenant_default_name or "—" }}</td></tr>
+  <tr><td>Region / cloud</td><td>{{ snapshot.tenant_region or "—" }} / {{ snapshot.tenant_cloud or "Public" }}</td></tr>
+  <tr><td>Federation type</td><td>{{ snapshot.federation_type or "Unknown" }}</td></tr>
+  {% if snapshot.auth_url %}<tr><td>Auth URL</td><td>{{ snapshot.auth_url }}</td></tr>{% endif %}
+  {% if snapshot.federated_idp %}<tr><td>3rd-party IdP</td><td>{{ snapshot.federated_idp }}</td></tr>{% endif %}
+  {% if snapshot.aad_connect_type %}<tr><td>AAD Connect mode</td><td>{{ snapshot.aad_connect_type }}</td></tr>{% endif %}
+  {% if snapshot.seamless_sso %}<tr><td>Seamless SSO</td><td>enabled</td></tr>{% endif %}
+</table>
+
+<div class="footer">
+  Generated by <a href="https://github.com/osherassor/EntraScout" style="color:#0d47a1;text-decoration:none;font-weight:600;">🛰️ EntraScout</a>
+  v{{ run_meta.version or "0.1.x" }}
+  by <a href="https://github.com/osherassor" style="color:#0d47a1;text-decoration:none;font-weight:600;">Osher Assor</a>.
+  Full evidence in <code>report.html</code>, <code>findings.json</code>, <code>history.jsonl</code>, and <code>raw/</code>.
+  &nbsp;·&nbsp; For audit / authorized engagements only.
+</div>
+
+</body>
+</html>

@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EntraScout — {{ snapshot.target_input }}</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel2: #1a2030;
+    --border: #30363d;
+    --muted: #8b949e;
+    --text: #c9d1d9;
+    --accent: #58a6ff;
+    --critical: #f85149;
+    --high: #ff7b72;
+    --medium: #d29922;
+    --low: #56d364;
+    --info: #58a6ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg); color: var(--text); margin: 0; padding: 0;
+  }
+  header {
+    padding: 28px 36px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    position: sticky; top: 0; z-index: 10; backdrop-filter: blur(12px);
+  }
+  header h1 { margin: 0 0 6px; font-size: 26px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  main { max-width: 1400px; margin: 0 auto; padding: 24px 36px; }
+  section { margin-bottom: 36px; }
+  h2 { margin: 0 0 14px; font-size: 18px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+  /* Stats grid */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .stat .num { font-size: 26px; font-weight: 600; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+  .stat.crit .num { color: var(--critical); }
+  .stat.high .num { color: var(--high); }
+  .stat.med .num { color: var(--medium); }
+  .stat.low .num { color: var(--low); }
+  .stat.info .num { color: var(--info); }
+
+  /* Badges */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    margin-right: 4px; vertical-align: middle;
+  }
+  .sev-CRITICAL { background: var(--critical); color: white; }
+  .sev-HIGH { background: var(--high); color: white; }
+  .sev-MEDIUM { background: var(--medium); color: black; }
+  .sev-LOW { background: var(--low); color: black; }
+  .sev-INFO { background: var(--info); color: white; }
+  .kind-LEAD { background: #6e40c9; color: white; }
+  .kind-ISSUE { background: #db6d28; color: white; }
+  .kind-VALIDATION { background: #1f6feb; color: white; }
+  .kind-DATA { background: #6e7681; color: white; }
+
+  /* Filter bar */
+  .filters {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; margin-bottom: 20px; position: sticky; top: 100px; z-index: 9;
+  }
+  .filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+  .filter-row + .filter-row { margin-top: 10px; }
+  .filter-row label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; min-width: 70px; }
+  .filter-row input[type=search] {
+    flex: 1; min-width: 200px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 6px 10px; font-size: 13px;
+  }
+  .filter-row .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--bg); border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 14px; cursor: pointer; user-select: none;
+    font-size: 12px; transition: all 0.15s;
+  }
+  .filter-row .chip input { display: none; }
+  .filter-row .chip.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .filter-row .chip:hover { border-color: var(--accent); }
+  .filter-row .right { margin-left: auto; }
+  .filter-row .right button {
+    background: var(--bg); color: var(--accent); border: 1px solid var(--border);
+    padding: 5px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
+  }
+  .filter-row .right button:hover { background: var(--panel2); }
+
+  /* Phase group (details) */
+  details.phase {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 12px; overflow: hidden;
+  }
+  details.phase[open] { border-color: var(--accent); }
+  details.phase summary {
+    cursor: pointer; padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+    list-style: none; user-select: none;
+  }
+  details.phase summary::-webkit-details-marker { display: none; }
+  details.phase summary::before {
+    content: "▶"; color: var(--muted); font-size: 10px;
+    transition: transform 0.15s; display: inline-block;
+  }
+  details.phase[open] summary::before { transform: rotate(90deg); }
+  details.phase summary .phase-name {
+    font-weight: 600; color: var(--text); flex: 0 0 auto;
+  }
+  details.phase summary .phase-count {
+    color: var(--muted); font-size: 12px;
+  }
+  details.phase summary .phase-sevs {
+    margin-left: auto; display: flex; gap: 4px;
+  }
+  details.phase summary .phase-sevs .badge {
+    margin-right: 0;
+  }
+  details.phase .phase-body {
+    border-top: 1px solid var(--border); padding: 0;
+  }
+  .phase-explain {
+    background: linear-gradient(135deg, rgba(88,166,255,0.05) 0%, rgba(88,166,255,0.02) 100%);
+    border-bottom: 1px solid var(--border); padding: 12px 16px;
+    color: var(--muted); font-size: 12px; line-height: 1.55;
+  }
+  .phase-explain b { color: var(--text); }
+  .impact-block {
+    background: rgba(248,81,73,0.06); border-left: 3px solid var(--high);
+    padding: 8px 12px; margin: 8px 0; border-radius: 4px; font-size: 12px;
+  }
+  .impact-block.med { background: rgba(210,153,34,0.06); border-left-color: var(--medium); }
+  .impact-block.low { background: rgba(86,211,100,0.06); border-left-color: var(--low); }
+  .impact-block .impact-label { font-weight: 700; color: var(--high); margin-right: 6px; }
+  .impact-block.med .impact-label { color: var(--medium); }
+  .impact-block.low .impact-label { color: var(--low); }
+  .impact-block ul { margin: 4px 0 0 18px; padding: 0; }
+  .recommendation-block {
+    background: rgba(86,211,100,0.04); border-left: 3px solid var(--low);
+    padding: 6px 12px; margin-top: 6px; border-radius: 4px; font-size: 12px;
+  }
+  .recommendation-block .rec-label { font-weight: 700; color: var(--low); margin-right: 6px; }
+
+  /* Findings table */
+  table.findings { width: 100%; border-collapse: collapse; }
+  table.findings th, table.findings td {
+    text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top;
+    font-size: 13px;
+  }
+  table.findings th {
+    background: #21262d; color: var(--muted); font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  table.findings tr:last-child td { border-bottom: 0; }
+  table.findings tr:hover td { background: var(--panel2); }
+  .finding-title { font-weight: 600; color: var(--text); }
+  .finding-check { color: var(--muted); font-size: 11px; font-family: ui-monospace, monospace; margin-top: 2px; }
+  .finding-target { color: var(--accent); font-size: 12px; word-break: break-all; font-family: ui-monospace, monospace; }
+  .finding-desc { color: var(--muted); font-size: 12px; margin-top: 5px; }
+  .tags { margin-top: 6px; }
+  .tag {
+    display: inline-block; background: #21262d; border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 3px; font-size: 10px; color: var(--muted); margin-right: 3px;
+  }
+  details.payload { margin-top: 6px; }
+  details.payload summary {
+    color: var(--accent); cursor: pointer; font-size: 11px; user-select: none;
+  }
+  details.payload pre {
+    background: #0a0d12; border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px; overflow-x: auto; font-size: 11px; margin: 6px 0 0 0;
+    max-height: 300px; overflow-y: auto;
+  }
+
+  .sev-row-CRITICAL td { border-left: 3px solid var(--critical); }
+  .sev-row-HIGH td { border-left: 3px solid var(--high); }
+  .sev-row-MEDIUM td { border-left: 3px solid var(--medium); }
+  .sev-row-LOW td { border-left: 3px solid var(--low); }
+  .sev-row-INFO td { border-left: 3px solid var(--info); }
+
+  /* Attack paths */
+  .path-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+  .path-card h3 { margin: 0 0 6px; }
+  .path-card .meta { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  .path-card ol { margin: 0; padding-left: 20px; }
+
+  /* TOC */
+  .toc { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; }
+  .toc a { color: var(--accent); text-decoration: none; margin-right: 18px; font-size: 13px; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Tenant pre */
+  pre.tenant { background: #0a0d12; border: 1px solid var(--border); border-radius: 6px; padding: 14px; overflow-x: auto; font-size: 12px; }
+
+  /* No-results */
+  .no-results { padding: 24px; text-align: center; color: var(--muted); font-style: italic; }
+
+  footer { padding: 24px 36px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; text-align: center; }
+  code { background: #21262d; padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛰️ EntraScout — <code>{{ snapshot.target_input }}</code></h1>
+  <div class="sub">
+    Run <code>{{ run_meta.run_id }}</code> · finished {{ run_meta.finished_at }} ·
+    Tenant ID: <code>{{ snapshot.tenant_id or "n/a" }}</code> · Cloud: {{ snapshot.tenant_cloud or "?" }} ·
+    {{ "Internal mode" if run_meta.mode_internal else "External mode" }}
+  </div>
+</header>
+<main>
+
+  <section class="toc">
+    <a href="#summary">Summary</a>
+    <a href="#paths">Attack Paths</a>
+    <a href="#findings">Findings</a>
+    <a href="#tenant">Tenant Snapshot</a>
+  </section>
+
+  <section id="summary">
+    <h2>Summary</h2>
+    <div class="grid">
+      <div class="stat"><div class="num">{{ counts.total }}</div><div class="lbl">Total findings</div></div>
+      <div class="stat crit"><div class="num">{{ counts.critical }}</div><div class="lbl">Critical</div></div>
+      <div class="stat high"><div class="num">{{ counts.high }}</div><div class="lbl">High</div></div>
+      <div class="stat med"><div class="num">{{ counts.medium }}</div><div class="lbl">Medium</div></div>
+      <div class="stat low"><div class="num">{{ counts.low }}</div><div class="lbl">Low</div></div>
+      <div class="stat info"><div class="num">{{ counts.info or 0 }}</div><div class="lbl">Info</div></div>
+      <div class="stat"><div class="num">{{ counts.issues }}</div><div class="lbl">Issues</div></div>
+      <div class="stat"><div class="num">{{ counts.leads }}</div><div class="lbl">Leads</div></div>
+      <div class="stat"><div class="num">{{ chain.summary.total_paths }}</div><div class="lbl">Attack paths</div></div>
+    </div>
+  </section>
+
+  <section id="paths">
+    <h2>🎯 Attack Paths</h2>
+    {% if chain.attack_paths %}
+      {% for p in chain.attack_paths %}
+        <div class="path-card">
+          <h3>{{ loop.index }}. {{ p.name }}</h3>
+          <div class="meta">Effort: <strong>{{ p.effort }}</strong> · Blast radius: <strong>{{ p.blast_radius }}</strong> · Triggers: <code>{{ ', '.join(p.tags) }}</code></div>
+          <ol>
+            {% for line in p.story %}<li>{{ line }}</li>{% endfor %}
+          </ol>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p style="color: var(--muted)">No multi-step attack paths triggered. Atomic findings below remain useful.</p>
+    {% endif %}
+  </section>
+
+  <section id="findings">
+    <h2>🔎 Findings — all severities, all categories</h2>
+
+    <div class="filters">
+      <div class="filter-row">
+        <label>Search</label>
+        <input id="filter-search" type="search" placeholder="Title / target / check / phase…" autocomplete="off">
+        <span class="right"><button id="filter-reset" type="button">Reset filters</button></span>
+      </div>
+      <div class="filter-row">
+        <label>Severity</label>
+        {% for sev in ['CRITICAL','HIGH','MEDIUM','LOW','INFO'] %}
+          <label class="chip active" data-sev="{{ sev }}"><input type="checkbox" checked>{{ sev }}</label>
+        {% endfor %}
+        <label>Kind</label>
+        {% for k in ['ISSUE','LEAD','DATA','VALIDATION'] %}
+          <label class="chip active" data-kind="{{ k }}"><input type="checkbox" checked>{{ k }}</label>
+        {% endfor %}
+      </div>
+      <div class="filter-row">
+        <label>Expand</label>
+        <button id="expand-all" type="button" style="font-size:12px;background:var(--bg);color:var(--accent);border:1px solid var(--border);padding:4px 10px;border-radius:4px;cursor:pointer;">Expand all</button>
+        <button id="collapse-all" type="button" style="font-size:12px;background:var(--bg);color:var(--accent);border:1px solid var(--border);padding:4px 10px;border-radius:4px;cursor:pointer;">Collapse all</button>
+        <button id="expand-issues" type="button" style="font-size:12px;background:var(--bg);color:var(--accent);border:1px solid var(--border);padding:4px 10px;border-radius:4px;cursor:pointer;">Open phases with issues</button>
+      </div>
+    </div>
+
+    {# ---- Phase explainers — shown when a phase block is opened ---- #}
+    {% set phase_explanations = {
+      'tenant': 'Tenant fingerprint: tenant ID, default name, region, cloud, custom branding. Confirms the org is on M365 / Entra and which tenant.',
+      'federation': 'Federation: detects ADFS, B2C, External ID, third-party IdPs (Okta/Ping/etc.). ADFS exposure (MEX, Federation Metadata, RP catalog, ClaimsXray-in-prod) is the highest-impact class — combined with on-prem foothold it leads to Golden SAML (MITRE T1606.002).',
+      'user_enum': 'User enumeration via GetCredentialType + OneDrive timing + Teams external search. Validated user lists feed phishing, MFA fatigue, and password-spray operations.',
+      'm365_services': 'M365 service surface: SharePoint, OneDrive, Exchange (OWA/ECP/EWS/ActiveSync/MAPI/OAB), Teams, Yammer, Lync — confirms which services the tenant uses.',
+      'dns_surface': 'DNS / mail surface: MX, SPF, DMARC, DKIM, autodiscover, enterpriseregistration, lyncdiscover. Mail-spoofing posture (DMARC reject + SPF strict + DKIM) is the headline metric.',
+      'auth_surface': 'Auth attack surface: legacy SMTP/IMAP/POP banners, ROPC fingerprinting, AADSTS error-code analysis, Smart Lockout, device-code flow.',
+      'oauth': 'Token / OAuth: FOCI (Family of Client IDs) probing, device-code flow availability. Device-code is a recurring phishing primitive.',
+      'defense_posture': 'Roll-up of mail spoofing + legacy auth + ADFS exposure into a defense-posture verdict.',
+      'tenant_linkage': 'Sibling domains in the same tenant — useful for M&A discovery and supply-chain mapping.',
+      'bing_dorks': 'Microsoft-specific Bing dork pack — pre-built queries scoped to the tenant. Auto-runs with `--bing-key`.',
+      'copilot': 'M365 Copilot + Copilot Studio detection. Copilot Studio bots can be enumerated by power-pwn for deeper recon.',
+      'power_platform': 'Power Pages portals + Dataverse OData leak probe, Dynamics 365 multi-region (incl. sovereign clouds), Power BI publish-to-web.',
+      'azure_resources': 'Azure resources: App Service / Kudu / Storage Blob (anonymous listing) / Container Registry / Static Web Apps / Front Door / CDN / Service Bus / Cosmos / APIM / Search + ADO public projects/wikis.',
+      'identity_edges': 'AAD App Proxy (`*.msappproxy.net`), Defender for Cloud Apps tenant, DRS endpoints.',
+      'ms_public_content': 'Microsoft Bookings, Forms, Stream, Loop, Power BI, Yammer external — public content surfaces.',
+      'azure_subdomain_enum': 'Brand-derived namespace probes: Key Vault, Azure OpenAI, Cognitive Services, App Service deployment slots.',
+      'aad_apps': 'AAD App Registration enumeration via AADSTS error-code differential, B2C tenant detection, Graph metadata.',
+      'github_dorks': 'GitHub code-search dork pack — tenant ID, storage account names, Logic App URLs, connection strings. Auto-runs with GITHUB_TOKEN.',
+      'logic_apps': 'Logic App / Power Automate trigger URL hunt-pack. Leaked SAS-bound trigger URLs grant anonymous remote-execution into the workflow.',
+      'ado_deep': 'Azure DevOps deeper recon: legacy `*.visualstudio.com`, marketplace publishers, public project pipelines + service connections.',
+      'onedrive_links': 'OneDrive / SharePoint anonymous-link search dorks for `:x:/g/personal/` patterns.',
+      'intune': 'Intune / MDM: enrollment + tenant-scoped manage URL.',
+      'guest_inference': 'Cross-tenant B2B / guest signaling baseline — useful for supply-chain mapping.',
+      'wayback': 'Archive.org CDX sweep for historical login pages, ADFS endpoints, SP sites.',
+      'tenant_directory': 'Reverse-map: sibling domains in DIFFERENT tenants (M&A / regional split detection).',
+      'defender_posture': 'Defender / MCAS / Sentinel / MIP roll-up. MCAS portal existence indicates licensed defenders. SOAR webhook + MIP labels are hunt-packs.',
+      'package_leaks': 'NPM scope, PyPI prefix, Docker Hub namespace — internal-package supply-chain leak hunting.',
+      'cert_san': 'crt.sh CT-log SAN sweep for additional brand-related hostnames.',
+      'sharepoint_recon': 'SharePoint deep recon: site-collection wordlist, REST `/_api/web` probing, anonymous search-API test, legacy /_vti_bin paths.',
+      'azure_data_services': 'Azure data services namespace enum: Cosmos / SQL / Redis / Data Lake / Event Grid / IoT / Service Bus / Communication Services / Cognitive Search / Container Apps / Static Web App preview branches.',
+      'mfa_gaps': 'MFA bypass / gap surfaces. EXO legacy auth (EWS/ActiveSync/Autodiscover/OAB/MAPI/PowerShell-LiveID), ADFS WS-Trust /usernamemixed (silent username enum + no MFA), AAD ROPC token flows.',
+      'functions_unauth': 'Azure Function App `/api/{name}` brute force. Anon-callable functions = HIGH issue. Excludes `.scm.` (Kudu) and Easy Auth login pages to avoid false positives.',
+      'dark_corners': 'Niche/forgotten Microsoft surfaces: Sway, Visio, Project, Planner, Bookings With Me (per-user PII), Customer Voice, Power Apps public play, Defender for Identity, Defender XDR, Purview, Entra admin, Lighthouse.',
+      'authenticated': 'Authenticated Graph mode (only with --token). Pulls /me, organization, Security Defaults state, Conditional Access policies, MFA registration report, Service Principals, Applications, Directory Roles.',
+      'dns_intel': 'Deep DNS intelligence: TXT verification mining (SaaS supply-chain map), DKIM selector brute (~30 selectors), SRV records, CAA, DNSSEC, MTA-STS, TLS-RPT, BIMI.',
+      'subdomain_takeover': 'Microsoft-specific subdomain takeover patterns: cloudapp.azure.com, azurewebsites.net, trafficmanager.net, azurefd.net, azurestaticapps.net, blob.core.windows.net, search.windows.net, azure-api.net.',
+      'http_headers': 'HSTS / CSP / XFO / COOP / COEP / Referrer-Policy / Permissions-Policy roll-up + info-leak header detection (Server / X-Powered-By).',
+      'azure_compute_extras': 'AKS public API server (+ /healthz probe), Azure Batch, Spring Apps, Lab Services.',
+      'azure_data_extras': 'Synapse, Data Factory, Databricks (workspace ID hunt), HDInsight, Azure ML workspaces, Health Bot, Confidential Ledger, FHIR.',
+      'azure_network_extras': 'SignalR, Web PubSub, Bastion, Azure Private Link DNS leak detection (privatelink.* records in public DNS).',
+      'microsoft_endpoint': 'Microsoft Tunnel, Edge for Business, Endpoint Manager / Intune admin, Defender for Cloud / for Endpoint API, TVM, Compliance Manager.',
+      'dynamics_deep': 'D365 CRM Web API direct probe (`/api/data/v9.2/` 200 anonymously = HIGH), Power Pages vanity-domain CNAME chase, AppSource publisher.',
+      'entra_advanced': 'Entra External ID + OIDC, Verified ID, Workload Identities, ID Governance, Permissions Management, Internet/Private Access (ZTNA), PIM admin.',
+      'teams_deep': 'Teams meeting / Live Event URL hunt-pack, Teams incoming-webhook hunt (anonymous post-to-channel exec primitive).',
+      'office_extras': 'OneNote, Office Online, Lists consumer, Clipchamp, Editor.',
+      'cross_saas': 'Cross-SaaS tenant existence: Atlassian, Slack, Zoom, Webex, GitHub org, GitLab, Bitbucket, HuggingFace, Notion, Cloudflare Pages/Workers, Vercel, Netlify, Heroku, AWS S3.',
+      'breach_intel': 'HaveIBeenPwned + paste-site dork pack. With HIBP_API_KEY: domain-level breach query.',
+      'webhook_hunt': 'MS Teams + Outlook + Logic Apps + Functions + Slack/Discord webhook URL leak hunt.',
+      'subscription_leak': 'Azure subscription ID leak hunt-pack (GitHub dorks + ARM templates) + GUID extraction from App Service response bodies.',
+      'power_pages_odata_deep': 'Specific Dataverse entity-set probes (contacts, accounts, incidents, etc.) for anonymous read — issues HIGH when 200 with data.',
+      'final_gaps': 'Service Fabric, Azure VM/VMSS, ACI, VPN/ExpressRoute deep-links, Relay, Notification Hubs, Stream Analytics/TSI, CAE inference, Insider Risk, Power Virtual Agents bot enum.',
+      'internal_mode': 'Internal-mode probes (assume corp-net foothold): ADFS server discovery, Exchange on-prem, AAD Connect server, internal autodiscover.'
+    } %}
+
+    {# ---- Per-check impact text — shown next to the finding ---- #}
+    {% set impact_map = {
+      'adfs_relying_party_catalog_disclosed': {
+        'sev': 'high',
+        'impact': 'The IdP-Initiated Signon page lists every Relying Party (federated app) registered in this ADFS. Reveals the org\'s internal application inventory — vendor SaaS, AWS/SAP federation, admin portals, dev environments — without authentication.',
+        'attacker_steps': [
+          'Use RP names to craft phishing lures referencing real internal apps',
+          'Send loginToRp= phishing links on the legitimate ADFS-branded URL',
+          'When chained with on-prem ADFS compromise: forge SAML tokens (Golden SAML / MITRE T1606.002) for any of the disclosed RPs',
+        ]
+      },
+      'adfs_claimsxray_in_production': {
+        'sev': 'high',
+        'impact': 'ClaimsXray is a Microsoft-published debug Relying Party (`adfshelp.microsoft.com/ClaimsXray`) used by ADFS admins during commissioning. It echoes back every claim ADFS issues. Microsoft documentation explicitly states it must be removed before production. Its presence indicates configuration-management gaps.',
+        'attacker_steps': [
+          'A single phished credential authenticates to ClaimsXray with NO MFA on most deployments (per-RP MFA policy almost never set on debug RPs)',
+          'ClaimsXray returns the full claim set for the user — including all AD group memberships, sAMAccountName, custom claims',
+          'Attacker now knows the user\'s privilege level (e.g. Domain Admins) and the exact claim schema needed for Golden SAML token forging',
+        ]
+      },
+      'adfs_mex_exposed': {
+        'sev': 'medium',
+        'impact': 'ADFS Metadata Exchange (MEX) is reachable unauthenticated. Exposes the WS-Trust endpoint inventory, token-signing certificate metadata, supported security policies, and sometimes internal hostnames.',
+        'attacker_steps': [
+          'Standard pre-attack reconnaissance for Golden SAML campaigns',
+          'Identifies which legacy auth endpoints are enabled (usernamemixed, windowstransport, certificatemixed)',
+          'Token-signing cert public key + thumbprint disclosed (helps fingerprint cert rotations)',
+        ]
+      },
+      'adfs_idpinitiatedsignon_enabled': {
+        'sev': 'medium',
+        'impact': 'Microsoft hardening guidance recommends disabling `idpinitiatedsignon.aspx`. When enabled, it creates a phishing primitive: an attacker-supplied URL lands the victim on a real organization-branded login form on a real organization-owned URL.',
+        'attacker_steps': [
+          'Send phishing email with link: https://adfs.target.com/adfs/ls/idpinitiatedsignon.aspx?loginToRp=...',
+          'Victim sees genuine target-branded ADFS login page (not a typosquat) — high credibility',
+          'Captured credentials work against the real ADFS',
+        ]
+      },
+      'function_anonymous_callable': {
+        'sev': 'high',
+        'impact': 'A Function App endpoint responded 200 to an anonymous GET. The function\'s `authLevel` is set to `anonymous`. Without input validation, this is a remote-execution surface.',
+        'attacker_steps': [
+          'Discovery: probe POST/PUT/DELETE methods + parameters',
+          'If the function processes user input (file upload, JSON body, etc.), test for injection / SSRF / path traversal',
+          'If function emits backend identifiers (subscription ID, resource group), use for downstream pivoting',
+        ]
+      },
+      'cname_to_dangling_azure': {
+        'sev': 'high',
+        'impact': 'A subdomain CNAMEs to a deleted Azure resource. The Azure namespace is global and reusable — an attacker can re-register the resource name and serve content under your subdomain.',
+        'attacker_steps': [
+          'Register the dangling Azure resource (App Service / Front Door / Storage / Traffic Manager)',
+          'Serve attacker content from the legitimate-looking corporate subdomain',
+          'Phish credentials, intercept OAuth, hijack cookies (if cookie scope allows)',
+        ]
+      },
+      'sp_anon_search_api': {
+        'sev': 'high',
+        'impact': 'SharePoint Search REST API responds 200 to anonymous queries — full content enumeration of the tenant\'s indexed surface (documents, list items, pages) is possible.',
+        'attacker_steps': [
+          'Issue queries: `password`, `secret`, `confidential`, `payroll`, `customer`',
+          'Enumerate exposed documents / lists / pages',
+          'Download anything returned (may be inadvertent public sharing)',
+        ]
+      },
+      'd365_webapi_anonymous': {
+        'sev': 'high',
+        'impact': 'D365 CRM Web API responded 200 to an anonymous request. Should always be auth-gated. Investigate which entities are exposed.',
+        'attacker_steps': [
+          'Probe entity sets: /accounts, /contacts, /incidents, /leads',
+          'Pull data via OData query parameters ($select, $filter, $expand)',
+          'Possible PII / customer data exfiltration depending on table permissions',
+        ]
+      },
+      'odata_entity_anonymous': {
+        'sev': 'high',
+        'impact': 'Power Pages OData entity readable anonymously — Dataverse data-disclosure misconfig at the Web Role / Table Permission layer.',
+        'attacker_steps': [
+          'Pull all rows: append `?$top=999` and follow @odata.nextLink',
+          'Enumerate entity schema via the related $metadata',
+          'Cross-reference exposed records with public OSINT for intel',
+        ]
+      },
+      'mail_spoofing_posture': {
+        'sev': 'high',
+        'impact': 'Domain spoofing is a top phishing surface. Weak DMARC/SPF/DKIM lets attackers send mail FROM your domain with no validation failures — high credibility on the receiving end.',
+        'attacker_steps': [
+          'Send spoofed mail with valid DKIM (if missing) and matching SPF (if permissive)',
+          'Receiving servers accept the mail without raising spam flags',
+          'Delivers credential phish, BEC fraud, malware to staff with the org\'s real From: domain',
+        ]
+      },
+      'hsts_missing': {
+        'sev': 'medium',
+        'impact': 'Missing Strict-Transport-Security header. Clients may be tricked into HTTP downgrade attacks (SSL strip).',
+        'attacker_steps': [
+          'On-path attacker (Wi-Fi MITM, BGP hijack, etc.) intercepts initial HTTP request',
+          'Strip TLS, present HTTP version of site, capture credentials / cookies',
+          'HSTS preload would have prevented this',
+        ]
+      },
+      'aks_api_server': {
+        'sev': 'medium',
+        'impact': 'AKS public API server is reachable. Anonymous /healthz indicates the API is internet-facing; even auth-gated APIs leak version info, supported auth methods, and are subject to known CVEs.',
+        'attacker_steps': [
+          'Fingerprint Kubernetes version via /version → CVE matching',
+          'If RBAC misconfigured: anonymous user may have system:unauthenticated permissions',
+          'Test for known auth bypass CVEs (CVE-2023-2728, etc.)',
+        ]
+      },
+      'app_service_slot_exists': {
+        'sev': 'medium',
+        'impact': 'Deployment slot reachable. Slots often share infrastructure with the primary app but may have different WAF rules, auth config, or be running older code.',
+        'attacker_steps': [
+          'Compare slot vs prod responses — may serve different code',
+          'Test for vulnerabilities patched in prod but not in staging',
+          'Slots sometimes leak debug info, dev credentials, source maps',
+        ]
+      },
+      'privatelink_dns_leak': {
+        'sev': 'medium',
+        'impact': 'Public DNS records resolve to `privatelink.*` Azure namespaces. Should live in a Private DNS Zone — public exposure leaks resource type and name to any internet observer.',
+        'attacker_steps': [
+          'Map the org\'s internal Azure architecture from public DNS',
+          'Identify which Azure services they use privately (storage, KV, sql, etc.)',
+          'Combined with leaked credentials / SAS URLs: direct access to private resources',
+        ]
+      },
+      'saas_inventory_via_txt': {
+        'sev': 'low',
+        'impact': 'TXT verification records reveal the org\'s third-party SaaS supply chain. Each provider is a potential phishing target with known login URL patterns.',
+        'attacker_steps': [
+          'For each SaaS: check whether org has a public tenant URL ({org}.atlassian.net, etc.)',
+          'Phish for that specific SaaS using their real branding',
+          'Investigate each for known supply-chain vulnerabilities',
+        ]
+      },
+      'dkim_selectors_active': {
+        'sev': 'low',
+        'impact': 'Active DKIM selectors map the org\'s mail-flow architecture: which third parties sign mail on behalf of the org (Mailchimp, SendGrid, Marketo, etc).',
+        'attacker_steps': [
+          'Each ESP partner is a phishing target — phishing the partner can yield mail-relay credentials',
+          'Compromised ESP can send DKIM-valid mail FROM the target domain',
+        ]
+      }
+    } %}
+
+    {# Group all findings by phase #}
+    {% set all_findings = (issues + leads + data + validations) %}
+    {% set phases_dict = {} %}
+    {% for f in all_findings %}
+      {% if phases_dict.update({f.phase: phases_dict.get(f.phase, []) + [f]}) %}{% endif %}
+    {% endfor %}
+
+    {# Phase ordering — phases with HIGH/CRITICAL findings first #}
+    {% set sev_order = {'CRITICAL': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3, 'INFO': 4} %}
+    {% set phase_list = phases_dict.keys() | list %}
+
+    {% for phase in phase_list %}
+      {% set phase_findings = phases_dict[phase] %}
+      {% set phase_sevs = phase_findings | map(attribute='severity.value') | list %}
+      {% set has_crit_high = ('CRITICAL' in phase_sevs) or ('HIGH' in phase_sevs) %}
+      {% set sev_counts = {} %}
+      {% for s in phase_sevs %}{% if sev_counts.update({s: sev_counts.get(s, 0) + 1}) %}{% endif %}{% endfor %}
+
+      <details class="phase" data-phase="{{ phase }}" {% if has_crit_high %}open{% endif %}>
+        <summary>
+          <span class="phase-name">{{ phase }}</span>
+          <span class="phase-count">— {{ phase_findings | length }} finding{{ '' if phase_findings|length == 1 else 's' }}</span>
+          <span class="phase-sevs">
+            {% for sev in ['CRITICAL','HIGH','MEDIUM','LOW','INFO'] %}
+              {% if sev in sev_counts %}
+                <span class="badge sev-{{ sev }}">{{ sev_counts[sev] }} {{ sev[:1] }}</span>
+              {% endif %}
+            {% endfor %}
+          </span>
+        </summary>
+        <div class="phase-body">
+          {% if phase_explanations.get(phase) %}
+          <div class="phase-explain"><b>What this phase covers:</b> {{ phase_explanations[phase] }}</div>
+          {% endif %}
+          <table class="findings">
+            <thead><tr><th style="width:80px;">Sev</th><th style="width:80px;">Kind</th><th>Finding</th><th style="width:30%;">Target / Evidence</th></tr></thead>
+            <tbody>
+            {# Sort by severity desc within phase #}
+            {% set sorted_findings = phase_findings | sort(attribute='severity.value', reverse=false) %}
+            {% set sorted_findings = phase_findings %}
+            {% for f in phase_findings | sort(attribute='severity.value') %}
+              <tr class="finding sev-row-{{ f.severity.value }}"
+                  data-sev="{{ f.severity.value }}"
+                  data-kind="{{ f.kind.value }}"
+                  data-search="{{ (f.title + ' ' + (f.target or '') + ' ' + (f.check or '') + ' ' + (f.description or '')) | lower }}">
+                <td><span class="badge sev-{{ f.severity.value }}">{{ f.severity.value }}</span></td>
+                <td><span class="badge kind-{{ f.kind.value }}">{{ f.kind.value }}</span></td>
+                <td>
+                  <div class="finding-title">{{ f.title }}</div>
+                  <div class="finding-check"><code>{{ f.check }}</code></div>
+                  {% if f.description %}<div class="finding-desc">{{ f.description }}</div>{% endif %}
+                  {% if f.tags %}<div class="tags">{% for t in f.tags %}<span class="tag">{{ t.value }}</span>{% endfor %}</div>{% endif %}
+                  {% if impact_map.get(f.check) %}
+                    {% set imp = impact_map[f.check] %}
+                    <div class="impact-block {{ imp.sev }}">
+                      <span class="impact-label">⚡ Impact:</span> {{ imp.impact }}
+                      {% if imp.attacker_steps %}
+                      <ul>{% for s in imp.attacker_steps %}<li>{{ s }}</li>{% endfor %}</ul>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                  {% if f.recommendation %}
+                    <div class="recommendation-block">
+                      <span class="rec-label">🛡 Fix:</span> {{ f.recommendation }}
+                    </div>
+                  {% endif %}
+                  {% if f.data %}
+                    <details class="payload">
+                      <summary>Show evidence / data</summary>
+                      <pre>{{ f.data | tojson(indent=2) }}</pre>
+                    </details>
+                  {% endif %}
+                </td>
+                <td><div class="finding-target">{{ f.target }}</div></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    {% endfor %}
+
+    <div id="no-results" class="no-results" style="display:none;">No findings match your filters.</div>
+  </section>
+
+  <section id="tenant">
+    <h2>🪪 Tenant Snapshot</h2>
+    <pre class="tenant">{{ snapshot_json }}</pre>
+  </section>
+
+</main>
+<footer>
+  Generated by <a href="https://github.com/osherassor/EntraScout" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-weight:600;">🛰️ EntraScout</a>
+  by <a href="https://github.com/osherassor" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-weight:600;">Osher Assor</a>
+  · run id <code>{{ run_meta.run_id }}</code> · raw evidence in <code>raw/</code> · history in <code>history.jsonl</code>
+</footer>
+
+<script>
+(function() {
+  'use strict';
+  const search = document.getElementById('filter-search');
+  const sevChips = document.querySelectorAll('[data-sev]');
+  const kindChips = document.querySelectorAll('[data-kind]');
+  const phases = document.querySelectorAll('details.phase');
+  const noResults = document.getElementById('no-results');
+
+  function activeFilters() {
+    const sevs = new Set();
+    sevChips.forEach(c => { if (c.classList.contains('active')) sevs.add(c.dataset.sev); });
+    const kinds = new Set();
+    kindChips.forEach(c => { if (c.classList.contains('active')) kinds.add(c.dataset.kind); });
+    const q = (search.value || '').trim().toLowerCase();
+    return { sevs, kinds, q };
+  }
+
+  function applyFilters() {
+    const { sevs, kinds, q } = activeFilters();
+    let totalVisible = 0;
+    phases.forEach(phase => {
+      const rows = phase.querySelectorAll('tr.finding');
+      let visibleInPhase = 0;
+      rows.forEach(row => {
+        const matchSev = sevs.has(row.dataset.sev);
+        const matchKind = kinds.has(row.dataset.kind);
+        const matchSearch = !q || row.dataset.search.includes(q);
+        const ok = matchSev && matchKind && matchSearch;
+        row.style.display = ok ? '' : 'none';
+        if (ok) visibleInPhase++;
+      });
+      // Hide entire phase block when no visible rows
+      phase.style.display = visibleInPhase === 0 ? 'none' : '';
+      totalVisible += visibleInPhase;
+    });
+    noResults.style.display = totalVisible === 0 ? '' : 'none';
+  }
+
+  // Chip toggling
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', e => {
+      e.preventDefault();
+      chip.classList.toggle('active');
+      applyFilters();
+    });
+  });
+
+  search.addEventListener('input', applyFilters);
+
+  document.getElementById('filter-reset').addEventListener('click', () => {
+    search.value = '';
+    document.querySelectorAll('.chip').forEach(c => c.classList.add('active'));
+    applyFilters();
+  });
+
+  document.getElementById('expand-all').addEventListener('click', () => {
+    phases.forEach(p => p.open = true);
+  });
+  document.getElementById('collapse-all').addEventListener('click', () => {
+    phases.forEach(p => p.open = false);
+  });
+  document.getElementById('expand-issues').addEventListener('click', () => {
+    phases.forEach(p => {
+      const hasHigh = p.querySelector('tr.finding[data-sev="HIGH"], tr.finding[data-sev="CRITICAL"]');
+      p.open = !!hasHigh;
+    });
+  });
+
+  applyFilters();
+})();
+</script>
+</body>
+</html>

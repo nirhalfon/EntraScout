@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "entrascout"
+version = "0.1.8"
+description = "External + internal Microsoft 365 / Entra ID / Azure red-team reconnaissance, with attack-chain mapping"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Osher Assor", email = "assor17@gmail.com" }
+]
+keywords = ["m365", "entra", "azure", "recon", "redteam", "pentest", "osint"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+dependencies = [
+    "httpx[http2]>=0.27.0",
+    "dnspython>=2.6.0",
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    "pydantic>=2.6.0",
+    "jinja2>=3.1.3",
+    "pyyaml>=6.0.1",
+    "tldextract>=5.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[project.scripts]
+entrascout = "entrascout.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["entrascout*"]
+
+[tool.setuptools.package-data]
+entrascout = ["data/**/*.yaml", "data/**/*.txt", "templates/*.html.j2"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
