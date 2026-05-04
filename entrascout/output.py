@@ -5,6 +5,7 @@ import csv
 import json
 import os
 import secrets
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -214,3 +215,31 @@ class OutputManager:
         artifacts["run.json"] = str(self.write_json("run.json", meta))
 
         return artifacts
+
+
+class StreamingOutputManager(OutputManager):
+    """OutputManager that also broadcasts events to an async callback."""
+
+    def __init__(
+        self,
+        base_root: str | os.PathLike[str],
+        target: str,
+        event_callback: Callable[[dict[str, Any]], Any] | None = None,
+    ) -> None:
+        super().__init__(base_root, target)
+        self._event_callback = event_callback
+
+    def add(self, finding: Finding) -> Finding:
+        super().add(finding)
+        if self._event_callback:
+            try:
+                import asyncio
+                asyncio.create_task(
+                    self._event_callback({
+                        "type": "finding",
+                        "finding": finding.model_dump(mode="json"),
+                    })
+                )
+            except Exception:
+                pass
+        return finding

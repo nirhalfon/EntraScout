@@ -1,0 +1,1 @@
+"""EntraScout web package."""

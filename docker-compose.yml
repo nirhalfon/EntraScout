@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  entrascout:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - ENTRASCOUT_DB=/app/data/entrascout.db
+      - ENTRASCOUT_OUTPUT=/app/data/output
+      - ENTRASCOUT_RATE_LIMIT=10
+    restart: unless-stopped

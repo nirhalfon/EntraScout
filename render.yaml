@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: entrascout
+    runtime: docker
+    plan: standard
+    healthCheckPath: /api/health
+    envVars:
+      - key: ENTRASCOUT_DB
+        value: /app/data/entrascout.db
+      - key: ENTRASCOUT_OUTPUT
+        value: /app/data/output
+      - key: ENTRASCOUT_RATE_LIMIT
+        value: "10"
+    disk:
+      name: data
+      mountPath: /app/data
+      sizeGB: 1

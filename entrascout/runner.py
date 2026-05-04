@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable, Coroutine
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -25,18 +26,34 @@ INTERNAL_ORDER = DEFAULT_ORDER + ["internal"]
 
 async def _run_phase(name: str, mod: Any, ctx: RunContext, http: StealthClient,
                      snap: TenantSnapshot, om: OutputManager,
-                     prior: list[Any]) -> list[Any]:
+                     prior: list[Any],
+                     phase_callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None) -> list[Any]:
     log = get_logger("entrascout.runner")
     log.info("--- Phase: %s ---", name)
+    if phase_callback:
+        try:
+            await phase_callback({"type": "phase_start", "phase": name})
+        except Exception:  # noqa: BLE001
+            pass
     try:
         if name == "defense_posture":
             findings = await mod.run(ctx, http, snap, om, prior_findings=prior)
         else:
             findings = await mod.run(ctx, http, snap, om)
         log.info("[%s] %d finding(s)", name, len(findings))
+        if phase_callback:
+            try:
+                await phase_callback({"type": "phase_end", "phase": name, "findings_count": len(findings)})
+            except Exception:  # noqa: BLE001
+                pass
         return findings
     except Exception as e:  # noqa: BLE001
         log.exception("Phase %s failed: %s", name, e)
+        if phase_callback:
+            try:
+                await phase_callback({"type": "phase_error", "phase": name, "error": str(e)})
+            except Exception:  # noqa: BLE001
+                pass
         return []
 
 
@@ -55,9 +72,11 @@ async def run_engagement(
     workers: int = 32,
     proxy: str | None = None,
     history_writer: HistoryWriter | None = None,
+    output_manager: OutputManager | None = None,
+    phase_callback: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None,
 ) -> dict[str, Any]:
     target = normalize_target(target)
-    om = OutputManager(output_root, target)
+    om = output_manager or OutputManager(output_root, target)
 
     # Move logging + history into the per-run dir now that it exists.
     # IMPORTANT: when called concurrently (batch mode), reattaching mutates
@@ -106,7 +125,7 @@ async def run_engagement(
             if not entry:
                 continue
             name, mod = entry
-            results = await _run_phase(name, mod, ctx, http, snap, om, all_findings)
+            results = await _run_phase(name, mod, ctx, http, snap, om, all_findings, phase_callback)
             for f in results:
                 om.add(f)
             all_findings.extend(results)
