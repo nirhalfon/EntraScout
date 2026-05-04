@@ -297,7 +297,7 @@ No extra dependencies (no weasyprint / wkhtmltopdf required).
 ## 🚀 Quick start
 
 ```bash
-git clone https://github.com/osherassor/EntraScout.git
+git clone https://github.com/nirhalfon/EntraScout.git
 cd EntraScout
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
@@ -607,6 +607,7 @@ MIT (locked at public release).
 
 ## 👤 Author
 
-Built by [Osher Assor](https://github.com/osherassor).
+Originally built by [Osher Assor](https://github.com/osherassor).
+Forked and maintained by [Nir Halfon](https://github.com/nirhalfon).
 
 If EntraScout helped you find something, drop a ⭐ on the repo.
