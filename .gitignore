@@ -21,9 +21,10 @@ dist/
 # Local target lists (private — keep out of repo)
 targets*.txt
 
-# Local run output
+# Local run output / DB
 output/
 web_output/
+data/
 .entrascout/
 *.token
 
