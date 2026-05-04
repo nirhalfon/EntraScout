@@ -1,39 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --color-accent: oklch(0.78 0.12 220);
+    --color-accent-dim: oklch(0.55 0.08 220);
+    --color-critical: oklch(0.65 0.25 25);
+    --color-high: oklch(0.72 0.18 55);
+    --color-medium: oklch(0.78 0.15 85);
+    --color-low: oklch(0.72 0.18 145);
+    --color-info: oklch(0.70 0.15 240);
+  }
+
+  @supports not (color: oklch(0 0 0)) {
+    :root {
+      --color-accent: #58a6ff;
+      --color-accent-dim: #3a6fad;
+      --color-critical: #e5534b;
+      --color-high: #e8783a;
+      --color-medium: #d4a72c;
+      --color-low: #3fb950;
+      --color-info: #58a6ff;
+    }
+  }
+
   body {
-    @apply bg-scout-bg text-scout-text antialiased;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #0a0e14;
+    color: #c9d1d9;
+    font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.18 0.05 220 / 0.35), transparent 60%),
+      linear-gradient(180deg, #0a0e14 0%, #080b10 100%);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-.scrollbar-thin::-webkit-scrollbar {
-  width: 5px;
-}
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(30, 58, 95, 0.5);
-  border-radius: 3px;
-}
-
-.typing-container {
-  display: inline-block;
-  overflow: hidden;
-  white-space: nowrap;
-  border-right: 2px solid #0078D4;
-  animation: typing 3.5s steps(40, end), blink 1s step-end infinite;
-}
-
-@keyframes typing {
-  from { width: 0; }
-  to { width: 100%; }
-}
-
-@keyframes blink {
-  0%, 100% { border-color: #0078D4; }
-  50% { border-color: transparent; }
-}
+.scrollbar-thin::-webkit-scrollbar { width: 6px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #243049; border-radius: 2px; }

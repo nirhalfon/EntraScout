@@ -1,17 +1,23 @@
 import { useState, useCallback } from 'react'
-import Layout from './components/Layout'
-import ScanForm from './components/ScanForm'
-import ScanLive from './components/ScanLive'
-import ScanHistory from './components/ScanHistory'
-import AttackGraph from './components/AttackGraph'
-import { Network } from 'lucide-react'
+import ConsoleLayout from './components/ConsoleLayout'
+import CommandBar from './components/CommandBar'
+import ConsoleView from './views/ConsoleView'
+import FindingsView from './views/FindingsView'
+import ChainsView from './views/ChainsView'
+import SurfaceView from './views/SurfaceView'
+import HistoryView from './views/HistoryView'
+import { useScanEvents, useScanChain } from './hooks/useScanEvents'
+
+type TabId = 'console' | 'findings' | 'chains' | 'surface' | 'history'
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('scan')
+  const [activeTab, setActiveTab] = useState<TabId>('console')
   const [currentScanId, setCurrentScanId] = useState<string | null>(null)
   const [currentTarget, setCurrentTarget] = useState('')
   const [loading, setLoading] = useState(false)
-  const [chain, setChain] = useState(null)
+
+  const scanData = useScanEvents(currentScanId)
+  const chain = useScanChain(currentScanId, scanData.status)
 
   const handleScanStart = useCallback((target: string, options: Record<string, unknown>) => {
     setLoading(true)
@@ -21,72 +27,56 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options),
     })
-      .then((r) => {
-        if (!r.ok) throw new Error('Failed to start scan')
-        return r.json()
-      })
-      .then((data) => {
+      .then(r => { if (!r.ok) throw new Error('Failed to start scan'); return r.json() })
+      .then(data => {
         setCurrentScanId(data.run_id)
-        setActiveTab('scan')
+        setActiveTab('console')
         setLoading(false)
-        // Pre-fetch chain after a delay when scan likely done
-        const pollChain = () => {
-          fetch(`/api/scans/${data.run_id}/chain`)
-            .then((r) => r.json())
-            .then((c) => {
-              if (c && c.nodes) setChain(c)
-            })
-            .catch(() => {})
-        }
-        setTimeout(pollChain, 30000)
-        setTimeout(pollChain, 60000)
       })
-      .catch((err) => {
+      .catch(err => {
         alert(err.message)
         setLoading(false)
       })
   }, [])
 
-  const handleViewScan = useCallback((runId: string) => {
+  const handleCancel = useCallback(() => {
+    // For now, just mark as not loading
+    setLoading(false)
+  }, [])
+
+  const handleViewScan = useCallback((runId: string, target?: string) => {
     setCurrentScanId(runId)
-    setActiveTab('scan')
-    fetch(`/api/scans/${runId}/chain`)
-      .then((r) => r.json())
-      .then((c) => {
-        if (c && c.nodes) setChain(c)
-      })
-      .catch(() => {})
-    fetch(`/api/scans/${runId}`)
-      .then((r) => r.json())
-      .then((s) => {
-        if (s.target) setCurrentTarget(s.target)
-      })
-      .catch(() => {})
+    if (target) setCurrentTarget(target)
+    setActiveTab('console')
   }, [])
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab}>
-      {activeTab === 'scan' && (
-        <div className="space-y-6">
-          <ScanForm onScanStart={handleScanStart} loading={loading} />
-          {currentScanId && (
-            <ScanLive runId={currentScanId} target={currentTarget} />
-          )}
-          {chain && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-lg font-semibold">
-                <Network className="w-5 h-5 text-scout-accent" />
-                Attack Chain Graph
-              </div>
-              <AttackGraph chain={chain} />
-            </div>
-          )}
-        </div>
-      )}
+    <ConsoleLayout
+      activeTab={activeTab}
+      onTabChange={(tab: string) => setActiveTab(tab as TabId)}
+      scanStatus={scanData.status}
+      findingsCount={scanData.findings.length}
+      chainsCount={chain?.nodes?.length || 0}
+    >
+      <CommandBar onSubmit={handleScanStart} loading={loading} onCancel={handleCancel} />
 
-      {activeTab === 'history' && (
-        <ScanHistory onViewScan={handleViewScan} />
-      )}
-    </Layout>
+      <main className="flex-1">
+        {activeTab === 'console' && (
+          <ConsoleView scanData={scanData} chain={chain} runId={currentScanId} target={currentTarget} />
+        )}
+        {activeTab === 'findings' && (
+          <FindingsView findings={scanData.findings} counts={scanData.counts} />
+        )}
+        {activeTab === 'chains' && (
+          <ChainsView chain={chain} target={currentTarget} findings={scanData.findings} />
+        )}
+        {activeTab === 'surface' && (
+          <SurfaceView findings={scanData.findings} />
+        )}
+        {activeTab === 'history' && (
+          <HistoryView onViewScan={handleViewScan} />
+        )}
+      </main>
+    </ConsoleLayout>
   )
 }
